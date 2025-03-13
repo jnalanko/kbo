@@ -151,12 +151,12 @@ mod tests {
     #[test]
     fn test_variant_calling() {
 
-		let k = 9;
+		let k = 20;
 
         //                                 deleted character    substituted        inserted
         //                                        v                 v                v
         let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATACTATGTGTTATAGCAATTCGGATCGATCGA";
-        let query =                 b"GACACGCTAGCAGCTGACTCGATGGGATACCATGTGTTATAGCAATTCCGGATCGATCGA";
+        let query =      b"TCGTGGATCGATACACGCTAGCAGCTGACTCGATGGGATACCATGTGTTATAGCAATTCCGGATCGATCGA";
 
 
         let (sbwt, lcs) = build(&[reference.to_vec()], BuildOpts{ build_select: true, k, ..Default::default() });
