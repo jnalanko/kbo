@@ -83,7 +83,7 @@ fn call_variants(
 
     let mut prev_dms = 0_i64;
 	for (i, &dms) in derand_ms.iter().enumerate() {
-		if dms == 0 || (dms < k as i64 && prev_dms == k as i64) {
+		if prev_dms >= d as i64 && dms < prev_dms {
 			// Go to closest unique match position to the right
 			let mut unique_pos: Option<(usize, usize, usize)> = None; // (query pos, ms, colex rank)
 			eprintln!("{} {:?} {} {}", i, unique_pos, i+k+1, query.len());
@@ -151,12 +151,12 @@ mod tests {
     #[test]
     fn test_variant_calling() {
 
-		let k = 7;
+		let k = 9;
 
-        //                                 deleted character
-        //                                        v
-        let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATAC";
-        let query =                b"GACACGCTAGCAGCTGACTCGAT";
+        //                                 deleted character    substituted
+        //                                        v                 v
+        let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATACTATGTGTCA";
+        let query =                 b"GACACGCTAGCAGCTGACTCGATGGGATACCATGTGTCA";
 
         let (sbwt, lcs) = build(&[reference.to_vec()], BuildOpts{ build_select: true, k, ..Default::default() });
 		let n_kmers = match &sbwt {
@@ -173,6 +173,7 @@ mod tests {
         eprintln!("{:?}", noisy_ms);
         eprintln!("{:?}", derand_ms);
         eprintln!("{:?}", translated);
+        eprintln!("t = {}", threshold);
 
         let query_chars: Vec<char> = query.to_vec().iter().map(|c| *c as char).collect();
         let variants = call_variants(&sbwt, &query_chars, &noisy_ms, threshold, &derand_ms, k);
