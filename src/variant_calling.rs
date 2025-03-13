@@ -153,10 +153,11 @@ mod tests {
 
 		let k = 9;
 
-        //                                 deleted character    substituted
-        //                                        v                 v
-        let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATACTATGTGTCA";
-        let query =                 b"GACACGCTAGCAGCTGACTCGATGGGATACCATGTGTCA";
+        //                                 deleted character    substituted        inserted
+        //                                        v                 v                v
+        let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATACTATGTGTTATAGCAATTCGGATCGATCGA";
+        let query =                 b"GACACGCTAGCAGCTGACTCGATGGGATACCATGTGTTATAGCAATTCCGGATCGATCGA";
+
 
         let (sbwt, lcs) = build(&[reference.to_vec()], BuildOpts{ build_select: true, k, ..Default::default() });
 		let n_kmers = match &sbwt {
