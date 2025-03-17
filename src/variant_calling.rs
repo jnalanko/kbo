@@ -73,6 +73,7 @@ fn get_variant_length(ms: &[(usize, Range<usize>)], common_suffix_len: usize, si
 	for i in mismatch_pos..ms.len() {
 		let match_len = ms[i].0;
 		if match_len >= significant_match_threshold {
+			dbg!(i, mismatch_pos, match_len, common_suffix_len, ms.len());
 			return i - mismatch_pos + 1 - match_len;
 		}
 	}
@@ -124,16 +125,15 @@ fn resolve_variant(
 
 	// Todo: Check bases before the variation site
 	
-	return None; // Could not resolve variant
+	None // Could not resolve variant
 }
 
 #[allow(missing_docs)] // Will document when I know what this does
 fn call_variants(
-	sbwt_ref: SbwtIndex<SubsetMatrix>,
-	lcs_ref: LcsArray,
-	sbwt_query: SbwtIndex<SubsetMatrix>,
-	lcs_query: LcsArray,
-	reference: &[u8],
+	sbwt_ref: &SbwtIndex<SubsetMatrix>,
+	lcs_ref: &LcsArray,
+	sbwt_query: &SbwtIndex<SubsetMatrix>,
+	lcs_query: &LcsArray,
     query: &[u8],
 	significant_match_threshold: usize,
     k: usize,
@@ -146,19 +146,18 @@ fn call_variants(
 	let index_ref = StreamingIndex::new(&sbwt_ref, &lcs_ref);
 	let index_query = StreamingIndex::new(&sbwt_query, &lcs_query);
 	let ms_vs_ref = index_ref.matching_statistics(&query);
-	//let ms_vs_query = index_query.matching_statistics(&reference);
 
-    let mut prev_dms = 0_i64;
+	eprintln!("{:?}", ms_vs_ref.iter().map(|x| x.0).collect::<Vec::<usize>>());
+
 	for i in 1..query.len() {
-		if ms_vs_ref[i].0 < ms_vs_ref[i-1].0 && ms_vs_ref[i-1].0 >= d {
+		if ms_vs_ref[i].0 < ms_vs_ref[i-1].0 && ms_vs_ref[i-1].0 >= d && ms_vs_ref[i].0 < d {
 			// Go to closest unique match position to the right
-			let mut unique_pos: Option<(usize, usize, usize)> = None; // (query pos, ms, colex rank)
-			eprintln!("{} {:?} {} {}", i, unique_pos, i+k+1, query.len());
+			eprintln!("{} {} {}", i, i+k+1, query.len());
 			for j in i+1..min(i+k+1, query.len()) {
 				if ms_vs_ref[j].1.len() == 1 {
-					let query_pos = j;
+					eprintln!("Investigating positions {} {}", i, j);
 					let ref_colex = ms_vs_ref[j].1.start;
-					let common_suffix_len = ms_vs_ref[j].0;
+					let common_suffix_len = min(ms_vs_ref[j].0, j-i); // Don't go over the variant position
 
 					let query_kmer = get_kmer_ending_at(query, j, k);
 					let ref_kmer = sbwt_ref.access_kmer(ref_colex);
@@ -173,6 +172,8 @@ fn call_variants(
 					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, common_suffix_len, k, significant_match_threshold) {
 						calls.push((i, var));
 					}
+					
+					dbg!(&calls);
 				}
 			}
 
@@ -187,11 +188,14 @@ fn call_variants(
 #[cfg(test)]
 mod tests {
 
+    use std::cmp::max;
+
+    use sbwt::{BitPackedKmerSortingMem, SbwtConstructionAlgorithm, SbwtIndexBuilder};
+
     use crate::{build, derandomize::derandomize_ms_vec, index::{query_sbwt, BuildOpts}, translate::translate_ms_vec};
 
     use super::*;
 
-	/*
     #[test]
     fn test_variant_calling() {
 
@@ -203,30 +207,18 @@ mod tests {
         let query =      b"TCGTGGATCGATACACGCTAGCAGCTGACTCGATGGGATACCATGTGTTATAGCAATTCCGGATCGATCGA";
 
 
-        let (sbwt, lcs) = build(&[reference.to_vec()], BuildOpts{ build_select: true, k, ..Default::default() });
-		let n_kmers = match &sbwt {
-			SbwtIndexVariant::SubsetMatrix(s) => s.n_kmers(),
-			_ => panic!("Only plain matrix sbwt is supported"),
-		};
+        let (sbwt_ref, lcs_ref) = SbwtIndexBuilder::<BitPackedKmerSortingMem>::new().k(k).build_lcs(true).build_select_support(true).run_from_slices(&[reference]);
+        let (sbwt_query, lcs_query) = SbwtIndexBuilder::<BitPackedKmerSortingMem>::new().k(k).build_lcs(true).build_select_support(true).run_from_slices(&[query]);
 
-		let threshold = crate::derandomize::random_match_threshold(k, n_kmers, 4_usize, 0.001_f64);
+		let threshold = crate::derandomize::random_match_threshold(k, max(sbwt_ref.n_kmers(), sbwt_query.n_kmers()), 4_usize, 0.001_f64);
 
-        let noisy_ms = query_sbwt(query, &sbwt, &lcs);
-        let derand_ms = derandomize_ms_vec(&noisy_ms.iter().map(|x| x.0).collect::<Vec<usize>>(), k, threshold);
-        let translated = translate_ms_vec(&derand_ms, k, threshold);
-
-        eprintln!("{:?}", noisy_ms);
-        eprintln!("{:?}", derand_ms);
-        eprintln!("{:?}", translated);
         eprintln!("t = {}", threshold);
 
-        let query_chars: Vec<char> = query.to_vec().iter().map(|c| *c as char).collect();
-        let variants = call_variants(&sbwt, &query_chars, &noisy_ms, threshold, &derand_ms, k);
+		let variants = call_variants(&sbwt_ref, lcs_ref.as_ref().unwrap(), &sbwt_query, lcs_query.as_ref().unwrap(), query, threshold, k);
 
         dbg!(variants);
 
         assert!(false);
     }
-	*/
 
 }
