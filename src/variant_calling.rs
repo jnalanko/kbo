@@ -72,8 +72,8 @@ fn get_variant_length(ms: &[(usize, Range<usize>)], common_suffix_len: usize, si
 	// Go to the right until we are that match threshold again
 	for i in mismatch_pos..ms.len() {
 		let match_len = ms[i].0;
+		//dbg!(i,mismatch_pos,match_len,common_suffix_len);
 		if match_len >= significant_match_threshold {
-			dbg!(i, mismatch_pos, match_len, common_suffix_len, ms.len());
 			return i - mismatch_pos + 1 - match_len;
 		}
 	}
@@ -81,6 +81,7 @@ fn get_variant_length(ms: &[(usize, Range<usize>)], common_suffix_len: usize, si
 	// There is no significant match to the right -> we use the
 	// rightmost match.
 	let match_len = ms.last().unwrap().0;
+	//dbg!(match_len, ms.len(), mismatch_pos);
 	(ms.len() - 1) - mismatch_pos + 1 - match_len
 }
 
@@ -154,10 +155,15 @@ fn call_variants(
 			// Go to closest unique match position to the right
 			eprintln!("{} {} {}", i, i+k+1, query.len());
 			for j in i+1..min(i+k+1, query.len()) {
-				if ms_vs_ref[j].1.len() == 1 {
-					eprintln!("Investigating positions {} {}", i, j);
+				if j-i >= d && ms_vs_ref[j].0 >= d && ms_vs_ref[j].1.len() == 1 {
+					eprintln!("Investigating positions {} {}, ms[j] = {}", i, j, ms_vs_ref[j].0);
 					let ref_colex = ms_vs_ref[j].1.start;
-					let common_suffix_len = min(ms_vs_ref[j].0, j-i); // Don't go over the variant position
+					let common_suffix_len = ms_vs_ref[j].0; // Don't go over the variant position
+
+					if common_suffix_len > j-i {
+						eprintln!("Something weird is happening at i = {}, j = {}", i, j);
+						break; // No variant call
+					}
 
 					let query_kmer = get_kmer_ending_at(query, j, k);
 					let ref_kmer = sbwt_ref.access_kmer(ref_colex);
@@ -172,8 +178,7 @@ fn call_variants(
 					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, common_suffix_len, k, significant_match_threshold) {
 						calls.push((i, var));
 					}
-					
-					dbg!(&calls);
+					break;
 				}
 			}
 
