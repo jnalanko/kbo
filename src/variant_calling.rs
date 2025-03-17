@@ -1,17 +1,17 @@
 use std::{cmp::min, ops::Range};
 
-use sbwt::SbwtIndexVariant;
+use sbwt::{ContractLeft, ExtendRight, SbwtIndexVariant, StreamingIndex};
 
 // Pads with dollars from the left if there is not full k-mer
-fn get_kmer_ending_at(query: &[char], end_pos: usize, k: usize) -> Vec<char> {
-	let mut query_kmer = Vec::<char>::new();
+fn get_kmer_ending_at(query: &[u8], end_pos: usize, k: usize) -> Vec<u8> {
+	let mut query_kmer = Vec::<u8>::new();
 	if end_pos >= k-1 {
 		query_kmer.extend(&query[end_pos + 1 - k .. end_pos+1]);
 	} else {
 		let n_dollars = -(end_pos as isize - k as isize + 1);
 		assert!(n_dollars > 0);
 		for _ in 0..n_dollars {
-			query_kmer.push('$');
+			query_kmer.push(b'$');
 		}
 		query_kmer.extend(&query[0..end_pos+1]);
 	}
@@ -52,9 +52,9 @@ fn chars_to_bytes(chars: Vec<char>) -> Vec<u8> {
 
 #[derive(Debug)]
 enum Variant {
-	Subsitution(char), // Substitution to this character
-	Deletion(usize), // How many
-	Insertion(Vec<char>), // Insertion of these characters
+	Subsitution((u8, u8)), // Substitution from this to that character
+	Deletion(Vec<u8>), // Deletion of these characters 
+	Insertion(Vec<u8>), // Insertion of these characters
 }
 
 #[derive(Debug)]
@@ -62,13 +62,63 @@ struct VariantCalls {
 	calls: Vec<(usize, Variant)> // Position, variant
 }
 
-#[allow(missing_docs)] // Will document when I know what this does
-fn call_variants(
-    sbwt: &SbwtIndexVariant,
-    query: &[char],
-    original_ms: &[(usize, Range<usize>)],
+fn locate(colex: usize) -> usize {
+	todo!();
+}
+
+fn get_variant_length(ms: &[(usize, Range<usize>)], significant_match_threshold: usize) -> usize {
+	// Go to the right until we are that match threshold again
+	todo!();
+}
+
+fn resolve_variant(
+	query_kmer_end: usize, // Text position
+	ref_kmer_end: usize, // Text position
+	query: &[u8], 
+	reference: &[u8], 
+	ms_vs_query: &[(usize, Range<usize>)],
+	ms_vs_ref: &[(usize, Range<usize>)],
+	k: usize,
 	significant_match_threshold: usize,
-    derand_ms: &[i64],
+) -> Option<Variant> {
+
+	//assert!(unique_end_pos >= i);
+	let query_kmer = get_kmer_ending_at(&query, query_kmer_end, k);
+	let ref_kmer = get_kmer_ending_at(&reference, ref_kmer_end, k);
+
+	eprintln!("{}", String::from_utf8_lossy(&ref_kmer));
+	eprintln!("{}", String::from_utf8_lossy(&query_kmer));
+
+	let query_var_length = get_variant_length(ms_vs_ref, significant_match_threshold);
+	let ref_var_length = get_variant_length(ms_vs_query, significant_match_threshold);
+
+	if query_var_length == 0 && ref_var_length > 0 {
+		// Deletion in query
+		let seq = ref_kmer[..].to_vec(); // Todo: figure out indices
+		return Some(Variant::Deletion(seq));
+	} else if (query_var_length > 0 && ref_var_length == 0) {
+		// Insertion in query
+		let seq = query_kmer[..].to_vec(); // Todo: figure out indices
+		return Some(Variant::Insertion(seq));
+	} else if (query_var_length == 1 && ref_var_length == 1) {
+		// Substitution
+		let ref_char = ref_kmer[0]; // Todo: figure out indices
+		let query_char = query_kmer[0]; // Todo: figure out indices
+		return Some(Variant::Subsitution((ref_char, query_char)));
+	}
+
+	// Todo: Check bases before the variation site
+	
+	return None; // Could not resolve variant
+}
+
+#[allow(missing_docs)] // Will document when I know what this does
+fn call_variants<E: ExtendRight, C: ContractLeft>(
+    index_ref: &StreamingIndex<E, C>,
+    index_query: &StreamingIndex<E, C>,
+	reference: &[u8],
+    query: &[u8],
+	significant_match_threshold: usize,
     k: usize,
 ) -> VariantCalls {
 
@@ -76,65 +126,26 @@ fn call_variants(
 
 	let mut calls: Vec<(usize, Variant)> = vec![];
 
-	let sbwt = match sbwt {
-		SbwtIndexVariant::SubsetMatrix(index) => index,
-		_ => panic!("Only SbwtIndexVariant::SubsetMatrix is supported"),
-	};
+	let ms_vs_ref = index_ref.matching_statistics(&query);
+	let ms_vs_query = index_ref.matching_statistics(&reference);
 
     let mut prev_dms = 0_i64;
-	for (i, &dms) in derand_ms.iter().enumerate() {
-		if prev_dms >= d as i64 && dms < prev_dms {
+	for i in 1..query.len() {
+		if ms_vs_ref[i].0 < ms_vs_ref[i-1].0 && ms_vs_ref[i-1].0 >= d {
 			// Go to closest unique match position to the right
 			let mut unique_pos: Option<(usize, usize, usize)> = None; // (query pos, ms, colex rank)
 			eprintln!("{} {:?} {} {}", i, unique_pos, i+k+1, query.len());
 			for j in i+1..min(i+k+1, query.len()) {
-				dbg!(&j, &original_ms[j]);
-				if original_ms[j].1.len() == 1 {
-					unique_pos = Some((j, original_ms[j].0, original_ms[j].1.start));
-					break;
+				if ms_vs_ref[j].1.len() == 1 {
+					let query_pos = j;
+					let ref_colex = ms_vs_ref[j].1.start;
+					let ref_pos = locate(ref_colex);
+					resolve_variant(j, ref_pos, &query, &reference, &ms_vs_query, &ms_vs_ref, k, d);
 				}
 			}
 
-			if let Some((unique_end_pos, unique_match_len, colex)) = unique_pos {
-				assert!(unique_end_pos >= i);
-				let ref_kmer = sbwt.access_kmer(colex);
-				let query_kmer = chars_to_bytes(get_kmer_ending_at(query, unique_end_pos, k));
 
-				eprintln!("{}", String::from_utf8_lossy(&ref_kmer));
-				eprintln!("{}", String::from_utf8_lossy(&query_kmer));
-				eprintln!("{} {}", longest_common_prefix(&ref_kmer, &query_kmer[1..]), unique_match_len);
-
-				if longest_common_prefix(&ref_kmer, &query_kmer) + unique_match_len == k-1 {
-					// Single nucleotide substitution at i
-					calls.push((i, Variant::Subsitution(query[i])));
-				}
-				else if longest_common_prefix(&ref_kmer, &query_kmer[1..]) + unique_match_len >= k-1 {
-					// Single nucleotide deletion at i
-					
-					// We check for >= k-1 instead of == k-1 because we can have random matches after
-					// the deletion point. For example:
-
-					//           deleted character
-					//                  v
-					// Ref   ACACGCTAGCAGGCTGACTCGAT
-					//        \\\\\\\\\\\|||||||||||
-					// Query GACACGCTAGCAGCTGACTCGAT
-					//
-					// Here the deleted G happens to match the next character
-					// in the query after the deletion point.
-
-					calls.push((i, Variant::Deletion(1)));
-				}
-
-				else if longest_common_prefix(&ref_kmer[1..], &query_kmer) + unique_match_len >= k-1 {
-					// Single nucleotide insertion at i
-					// We check for >= k-1 instead of == k-1 for the same reason as in deletions
-
-					calls.push((i, Variant::Insertion(vec![query[i]])));
-				}
-			}
 		}
-        prev_dms = dms;
 	}
 
     VariantCalls{calls}
@@ -148,6 +159,7 @@ mod tests {
 
     use super::*;
 
+	/*
     #[test]
     fn test_variant_calling() {
 
@@ -183,5 +195,6 @@ mod tests {
 
         assert!(false);
     }
+	*/
 
 }
