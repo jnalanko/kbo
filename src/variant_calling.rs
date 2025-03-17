@@ -71,6 +71,7 @@ fn get_variant_length(ms: &[(usize, Range<usize>)], significant_match_threshold:
 	todo!();
 }
 
+#[allow(clippy::too_many_arguments)]
 fn resolve_variant(
 	query_kmer_end: usize, // Text position
 	ref_kmer_end: usize, // Text position
