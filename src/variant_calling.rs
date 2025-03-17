@@ -52,7 +52,7 @@ fn chars_to_bytes(chars: Vec<char>) -> Vec<u8> {
 
 #[derive(Debug)]
 enum Variant {
-	Subsitution((u8, u8)), // Substitution from this to that character
+	Substitution((u8, u8)), // Substitution from this to that character
 	Deletion(Vec<u8>), // Deletion of these characters 
 	Insertion(Vec<u8>), // Insertion of these characters
 }
@@ -62,13 +62,25 @@ struct VariantCalls {
 	calls: Vec<(usize, Variant)> // Position, variant
 }
 
-fn locate(colex: usize) -> usize {
-	todo!();
-}
+// Assumes things about the inputs: todo: document
+fn get_variant_length(ms: &[(usize, Range<usize>)], common_suffix_len: usize, significant_match_threshold: usize) -> usize {
+	assert!(ms.len() > common_suffix_len);
 
-fn get_variant_length(ms: &[(usize, Range<usize>)], significant_match_threshold: usize) -> usize {
+	// Todo: make sure that none of the arithmetic can result in negative values
+
+	let mismatch_pos = ms.len() - common_suffix_len - 1;
 	// Go to the right until we are that match threshold again
-	todo!();
+	for i in mismatch_pos..ms.len() {
+		let match_len = ms[i].0;
+		if match_len >= significant_match_threshold {
+			return i - mismatch_pos + 1 - match_len;
+		}
+	}
+
+	// There is no significant match to the right -> we use the
+	// rightmost match.
+	let match_len = ms.last().unwrap().0;
+	(ms.len() - 1) - mismatch_pos + 1 - match_len
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -77,30 +89,37 @@ fn resolve_variant(
 	ref_kmer: &[u8], 
 	ms_vs_query: &[(usize, Range<usize>)], // Slice of length k
 	ms_vs_ref: &[(usize, Range<usize>)], // Slice of length k
+	common_suffix_len: usize,
 	k: usize,
 	significant_match_threshold: usize,
 ) -> Option<Variant> {
 
 	assert!(ms_vs_query.len() == k);
 	assert!(ms_vs_ref.len() == k);
+	assert!(common_suffix_len > 0);
 	//assert!(unique_end_pos >= i);
 
-	let query_var_length = get_variant_length(ms_vs_ref, significant_match_threshold);
-	let ref_var_length = get_variant_length(ms_vs_query, significant_match_threshold);
+	let variant_end = k - common_suffix_len; // Exclusive end
 
-	if query_var_length == 0 && ref_var_length > 0 {
+	let query_var_len = get_variant_length(ms_vs_ref, common_suffix_len, significant_match_threshold);
+	let ref_var_len = get_variant_length(ms_vs_query, common_suffix_len, significant_match_threshold);
+
+	assert!(variant_end > query_var_len);
+	assert!(variant_end > ref_var_len);
+
+	if query_var_len == 0 && ref_var_len > 0 {
 		// Deletion in query
-		let seq = ref_kmer[..].to_vec(); // Todo: figure out indices
+		let seq = ref_kmer[variant_end - ref_var_len .. variant_end].to_vec();
 		return Some(Variant::Deletion(seq));
-	} else if (query_var_length > 0 && ref_var_length == 0) {
+	} else if query_var_len > 0 && ref_var_len == 0 {
 		// Insertion in query
-		let seq = query_kmer[..].to_vec(); // Todo: figure out indices
+		let seq = query_kmer[variant_end - query_var_len .. variant_end].to_vec(); // Todo: figure out indices
 		return Some(Variant::Insertion(seq));
-	} else if (query_var_length == 1 && ref_var_length == 1) {
+	} else if query_var_len == 1 && ref_var_len == 1 {
 		// Substitution
-		let ref_char = ref_kmer[0]; // Todo: figure out indices
-		let query_char = query_kmer[0]; // Todo: figure out indices
-		return Some(Variant::Subsitution((ref_char, query_char)));
+		let ref_char = ref_kmer[variant_end-1];
+		let query_char = query_kmer[variant_end-1];
+		return Some(Variant::Substitution((ref_char, query_char)));
 	}
 
 	// Todo: Check bases before the variation site
@@ -139,6 +158,7 @@ fn call_variants(
 				if ms_vs_ref[j].1.len() == 1 {
 					let query_pos = j;
 					let ref_colex = ms_vs_ref[j].1.start;
+					let common_suffix_len = ms_vs_ref[j].0;
 
 					let query_kmer = get_kmer_ending_at(query, j, k);
 					let ref_kmer = sbwt_ref.access_kmer(ref_colex);
@@ -150,7 +170,9 @@ fn call_variants(
 					let ms_vs_ref = index_ref.matching_statistics(&query_kmer);
 					let ms_vs_query = index_query.matching_statistics(&ref_kmer);
 
-					resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, k, significant_match_threshold);
+					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, common_suffix_len, k, significant_match_threshold) {
+						calls.push((i, var));
+					}
 				}
 			}
 
