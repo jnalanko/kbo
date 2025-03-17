@@ -1,6 +1,6 @@
 use std::{cmp::min, ops::Range};
 
-use sbwt::{ContractLeft, ExtendRight, SbwtIndexVariant, StreamingIndex};
+use sbwt::{ContractLeft, ExtendRight, LcsArray, SbwtIndex, SbwtIndexVariant, StreamingIndex, SubsetMatrix};
 
 // Pads with dollars from the left if there is not full k-mer
 fn get_kmer_ending_at(query: &[u8], end_pos: usize, k: usize) -> Vec<u8> {
@@ -73,22 +73,17 @@ fn get_variant_length(ms: &[(usize, Range<usize>)], significant_match_threshold:
 
 #[allow(clippy::too_many_arguments)]
 fn resolve_variant(
-	query_kmer_end: usize, // Text position
-	ref_kmer_end: usize, // Text position
-	query: &[u8], 
-	reference: &[u8], 
-	ms_vs_query: &[(usize, Range<usize>)],
-	ms_vs_ref: &[(usize, Range<usize>)],
+	query_kmer: &[u8], 
+	ref_kmer: &[u8], 
+	ms_vs_query: &[(usize, Range<usize>)], // Slice of length k
+	ms_vs_ref: &[(usize, Range<usize>)], // Slice of length k
 	k: usize,
 	significant_match_threshold: usize,
 ) -> Option<Variant> {
 
+	assert!(ms_vs_query.len() == k);
+	assert!(ms_vs_ref.len() == k);
 	//assert!(unique_end_pos >= i);
-	let query_kmer = get_kmer_ending_at(&query, query_kmer_end, k);
-	let ref_kmer = get_kmer_ending_at(&reference, ref_kmer_end, k);
-
-	eprintln!("{}", String::from_utf8_lossy(&ref_kmer));
-	eprintln!("{}", String::from_utf8_lossy(&query_kmer));
 
 	let query_var_length = get_variant_length(ms_vs_ref, significant_match_threshold);
 	let ref_var_length = get_variant_length(ms_vs_query, significant_match_threshold);
@@ -114,9 +109,11 @@ fn resolve_variant(
 }
 
 #[allow(missing_docs)] // Will document when I know what this does
-fn call_variants<E: ExtendRight, C: ContractLeft>(
-    index_ref: &StreamingIndex<E, C>,
-    index_query: &StreamingIndex<E, C>,
+fn call_variants(
+	sbwt_ref: SbwtIndex<SubsetMatrix>,
+	lcs_ref: LcsArray,
+	sbwt_query: SbwtIndex<SubsetMatrix>,
+	lcs_query: LcsArray,
 	reference: &[u8],
     query: &[u8],
 	significant_match_threshold: usize,
@@ -127,8 +124,10 @@ fn call_variants<E: ExtendRight, C: ContractLeft>(
 
 	let mut calls: Vec<(usize, Variant)> = vec![];
 
+	let index_ref = StreamingIndex::new(&sbwt_ref, &lcs_ref);
+	let index_query = StreamingIndex::new(&sbwt_query, &lcs_query);
 	let ms_vs_ref = index_ref.matching_statistics(&query);
-	let ms_vs_query = index_ref.matching_statistics(&reference);
+	//let ms_vs_query = index_query.matching_statistics(&reference);
 
     let mut prev_dms = 0_i64;
 	for i in 1..query.len() {
@@ -140,8 +139,18 @@ fn call_variants<E: ExtendRight, C: ContractLeft>(
 				if ms_vs_ref[j].1.len() == 1 {
 					let query_pos = j;
 					let ref_colex = ms_vs_ref[j].1.start;
-					let ref_pos = locate(ref_colex);
-					resolve_variant(j, ref_pos, &query, &reference, &ms_vs_query, &ms_vs_ref, k, d);
+
+					let query_kmer = get_kmer_ending_at(query, j, k);
+					let ref_kmer = sbwt_ref.access_kmer(ref_colex);
+
+					eprintln!("{}", String::from_utf8_lossy(&ref_kmer));
+					eprintln!("{}", String::from_utf8_lossy(&query_kmer));
+
+					// MS vectors for k-mers (todo: use slices of global MS vector?)
+					let ms_vs_ref = index_ref.matching_statistics(&query_kmer);
+					let ms_vs_query = index_query.matching_statistics(&ref_kmer);
+
+					resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, k, significant_match_threshold);
 				}
 			}
 
