@@ -1,4 +1,4 @@
-use std::{cmp::min, ops::Range};
+use std::{cmp::min, ops::Range, process::exit};
 
 use sbwt::{ContractLeft, ExtendRight, LcsArray, SbwtIndex, SbwtIndexVariant, StreamingIndex, SubsetMatrix};
 
@@ -31,8 +31,7 @@ fn longest_common_prefix(x: &[u8], y: &[u8]) -> usize {
 	len
 }
 
-/*
-fn longest_common_suffix(x: &[char], y: &[char]) -> usize {
+fn longest_common_suffix(x: &[u8], y: &[u8]) -> usize {
 	let mut len = 0_usize;
 	for i in 0..min(x.len(), y.len()) {
 		if x[x.len() - 1 - i] == y[y.len() - 1 - i] {
@@ -44,17 +43,15 @@ fn longest_common_suffix(x: &[char], y: &[char]) -> usize {
 	}
 	len
 }
-*/
 
 fn chars_to_bytes(chars: Vec<char>) -> Vec<u8> {
     chars.iter().flat_map(|&c| c.to_string().into_bytes()).collect()
 }
 
 #[derive(Debug)]
-enum Variant {
-	Substitution((u8, u8)), // Substitution from this to that character
-	Deletion(Vec<u8>), // Deletion of these characters 
-	Insertion(Vec<u8>), // Insertion of these characters
+struct Variant {
+	query_chars: Vec<u8>, // If empty, it's a query deletion
+	ref_chars: Vec<u8>, // If empty, it's a query insertion 
 }
 
 #[derive(Debug)]
@@ -85,6 +82,18 @@ fn get_variant_length(ms: &[(usize, Range<usize>)], common_suffix_len: usize, si
 	(ms.len() - 1) - mismatch_pos + 1 - match_len
 }
 
+fn get_rightmost_significant_peak(ms: &[(usize, Range<usize>)], significant_match_threshold: usize) -> Option<usize> {
+	assert!(!ms.is_empty());
+	for i in (0..ms.len()-1).rev() {
+		let here = ms[i].0;
+		let next = ms[i+1].0;
+		if here >= significant_match_threshold && here > next {
+			return Some(here);
+		}
+	}
+	None
+}
+
 #[allow(clippy::too_many_arguments)]
 fn resolve_variant(
 	query_kmer: &[u8], 
@@ -101,30 +110,26 @@ fn resolve_variant(
 	assert!(common_suffix_len > 0);
 	//assert!(unique_end_pos >= i);
 
-	let variant_end = k - common_suffix_len; // Exclusive end
+	let query_ms_peak = get_rightmost_significant_peak(&ms_vs_ref[0..k-common_suffix_len], significant_match_threshold);
+	let ref_ms_peak = get_rightmost_significant_peak(&ms_vs_query[0..k-common_suffix_len], significant_match_threshold);
 
-	let query_var_len = get_variant_length(ms_vs_ref, common_suffix_len, significant_match_threshold);
-	let ref_var_len = get_variant_length(ms_vs_query, common_suffix_len, significant_match_threshold);
+	if let (Some(query_ms_peak), Some(ref_ms_peak)) = (query_ms_peak, ref_ms_peak) {
+		let suffix_match_start = k - common_suffix_len;
 
-	assert!(variant_end > query_var_len);
-	assert!(variant_end > ref_var_len);
+		// Negative gap means overlap 
+		let query_gap = suffix_match_start as isize - query_ms_peak as isize - 1;
+		let ref_gap = suffix_match_start as isize - ref_ms_peak as isize - 1;
 
-	if query_var_len == 0 && ref_var_len > 0 {
-		// Deletion in query
-		let seq = ref_kmer[variant_end - ref_var_len .. variant_end].to_vec();
-		return Some(Variant::Deletion(seq));
-	} else if query_var_len > 0 && ref_var_len == 0 {
-		// Insertion in query
-		let seq = query_kmer[variant_end - query_var_len .. variant_end].to_vec(); // Todo: figure out indices
-		return Some(Variant::Insertion(seq));
-	} else if query_var_len == 1 && ref_var_len == 1 {
-		// Substitution
-		let ref_char = ref_kmer[variant_end-1];
-		let query_char = query_kmer[variant_end-1];
-		return Some(Variant::Substitution((ref_char, query_char)));
+		if query_gap > 0 && ref_gap > 0 {
+			return Some(Variant{
+				query_chars: query_kmer[query_ms_peak+1..suffix_match_start].to_vec(),
+				ref_chars: ref_kmer[ref_ms_peak+1..suffix_match_start].to_vec()
+			});
+		} else {
+			return Some(Variant{query_chars: vec![], ref_chars: vec![]}); // TODO
+		}
+
 	}
-
-	// Todo: Check bases before the variation site
 	
 	None // Could not resolve variant
 }
@@ -155,27 +160,23 @@ fn call_variants(
 			// Go to closest unique match position to the right
 			eprintln!("{} {} {}", i, i+k+1, query.len());
 			for j in i+1..min(i+k+1, query.len()) {
-				if j-i >= d && ms_vs_ref[j].0 >= d && ms_vs_ref[j].1.len() == 1 {
+				if ms_vs_ref[j].1.len() == 1 {
 					eprintln!("Investigating positions {} {}, ms[j] = {}", i, j, ms_vs_ref[j].0);
 					let ref_colex = ms_vs_ref[j].1.start;
-					let common_suffix_len = ms_vs_ref[j].0; // Don't go over the variant position
-
-					if common_suffix_len > j-i {
-						eprintln!("Something weird is happening at i = {}, j = {}", i, j);
-						break; // No variant call
-					}
 
 					let query_kmer = get_kmer_ending_at(query, j, k);
 					let ref_kmer = sbwt_ref.access_kmer(ref_colex);
+					let suffix_match_len = longest_common_suffix(&query_kmer, &ref_kmer);
 
 					eprintln!("{}", String::from_utf8_lossy(&ref_kmer));
 					eprintln!("{}", String::from_utf8_lossy(&query_kmer));
-
+					dbg!(suffix_match_len);
+					
 					// MS vectors for k-mers (todo: use slices of global MS vector?)
 					let ms_vs_ref = index_ref.matching_statistics(&query_kmer);
 					let ms_vs_query = index_query.matching_statistics(&ref_kmer);
 
-					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, common_suffix_len, k, significant_match_threshold) {
+					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, suffix_match_len, k, significant_match_threshold) {
 						calls.push((i, var));
 					}
 					break;
