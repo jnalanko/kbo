@@ -88,7 +88,7 @@ fn get_rightmost_significant_peak(ms: &[(usize, Range<usize>)], significant_matc
 		let here = ms[i].0;
 		let next = ms[i+1].0;
 		if here >= significant_match_threshold && here > next {
-			return Some(here);
+			return Some(i);
 		}
 	}
 	None
@@ -110,8 +110,13 @@ fn resolve_variant(
 	assert!(common_suffix_len > 0);
 	//assert!(unique_end_pos >= i);
 
-	let query_ms_peak = get_rightmost_significant_peak(&ms_vs_ref[0..k-common_suffix_len], significant_match_threshold);
-	let ref_ms_peak = get_rightmost_significant_peak(&ms_vs_query[0..k-common_suffix_len], significant_match_threshold);
+	eprintln!("{:?}", ms_vs_ref);
+	eprintln!("{:?}", ms_vs_query);
+
+	let query_ms_peak = get_rightmost_significant_peak(ms_vs_ref, significant_match_threshold);
+	let ref_ms_peak = get_rightmost_significant_peak(ms_vs_query, significant_match_threshold);
+
+	dbg!(query_ms_peak, ref_ms_peak);
 
 	if let (Some(query_ms_peak), Some(ref_ms_peak)) = (query_ms_peak, ref_ms_peak) {
 		let suffix_match_start = k - common_suffix_len;
@@ -119,6 +124,8 @@ fn resolve_variant(
 		// Negative gap means overlap 
 		let query_gap = suffix_match_start as isize - query_ms_peak as isize - 1;
 		let ref_gap = suffix_match_start as isize - ref_ms_peak as isize - 1;
+
+		dbg!(query_gap, ref_gap);
 
 		if query_gap > 0 && ref_gap > 0 {
 			return Some(Variant{
