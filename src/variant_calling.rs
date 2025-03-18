@@ -133,7 +133,23 @@ fn resolve_variant(
 				ref_chars: ref_kmer[ref_ms_peak+1..suffix_match_start].to_vec()
 			});
 		} else {
-			return Some(Variant{query_chars: vec![], ref_chars: vec![]}); // TODO
+			let query_overlap = -query_gap;
+			let ref_overlap = -ref_gap;
+			assert!(query_overlap != ref_overlap); // This is impossible?
+			let variant_len = (query_overlap - ref_overlap).unsigned_abs();
+			if query_overlap > ref_overlap {
+				// Deletion in query
+				return Some(Variant{
+					query_chars: vec![], 
+					ref_chars: ref_kmer[ref_ms_peak + 1 .. ref_ms_peak + 1 + variant_len].to_vec()}
+				);
+			}  else {
+				// Insertion in query
+				return Some(Variant{
+					query_chars: query_kmer[query_ms_peak + 1 .. query_ms_peak + 1 + variant_len].to_vec(),
+					ref_chars: vec![]
+				});
+			}
 		}
 
 	}
