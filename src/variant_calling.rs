@@ -283,6 +283,34 @@ mod tests {
 		assert_eq!(variants, vec![Variant{query_pos: 50, ref_chars: vec![], query_chars: vec![b'A']}]);
 	}
 
+	#[test]
+	fn variant_call_test_single_base_deletion_case1() {
+		// Case: Non-overlapping query intervals
+
+		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCAGTCAACGTG";
+		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
+		//                                                                  ^ here
+
+		let variants = run_variant_calling(query, reference);
+		dbg!(&variants);
+
+		assert_eq!(variants, vec![Variant{query_pos: 50, ref_chars: vec![b'G'], query_chars: vec![]}]);
+	}
+
+	#[test]
+	fn variant_call_test_single_base_deletion_case2() {
+		// Case: overlapping query intervals
+
+		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATTCAACGTG";
+		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
+		//                                                                  ^ here
+
+		let variants = run_variant_calling(query, reference);
+		dbg!(&variants);
+
+		assert_eq!(variants, vec![Variant{query_pos: 51, ref_chars: vec![b'T'], query_chars: vec![]}]);
+	}
+
 
     #[test]
     fn variant_call_test_variants_in_same_query() {
