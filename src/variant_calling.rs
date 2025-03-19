@@ -392,7 +392,7 @@ mod tests {
 		let n = 100_000;
 		let variant_spacing = 25;
 		let k = 63;
-		let p_value = 1e-7;
+		let p_value = 1e-8;
 
 		let mut true_variants = Vec::<Variant>::new();
 
@@ -469,6 +469,7 @@ mod tests {
 		eprintln!("{} true variants", true_variants.len());
 		eprintln!("{} calls", calls.len());
 		eprintln!("{} correct out of {}", n_correct, n_calls);
+		assert_eq!(n_calls, n_correct);
 	}
 
 }
