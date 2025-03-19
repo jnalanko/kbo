@@ -401,7 +401,7 @@ mod tests {
 		let mut reference = Vec::<u8>::new();
 		let mut query = Vec::<u8>::new();
 
-		let n = 2000;
+		let n = 200;
 		let variant_spacing = 25;
 		let k = 31;
 
@@ -431,6 +431,27 @@ mod tests {
 
 				reference.extend(ref_variant.iter());
 				query.extend(query_variant.iter());
+
+				// Figure out if we had a pure insertion or deletion
+				let mut insertion_seq: Option<Vec<u8>> = None;
+				if query_variant.is_empty() && !ref_variant.is_empty() {
+					insertion_seq = Some(ref_variant.clone());
+				} else if !query_variant.is_empty() && ref_variant.is_empty() {
+					insertion_seq = Some(query_variant.clone());
+				}
+
+				if let Some(insertion_seq) = insertion_seq {
+					// Continue with a character that mismatches both the start
+					// and the end of the variant to avoid accidental matches to
+					// the border of the variant in the following genome. This would
+					// make the variant description incorrect.
+					let mut c = random_nucleotide(&mut rng);
+					while c == *insertion_seq.first().unwrap() || c == *insertion_seq.last().unwrap() {
+						c = random_nucleotide(&mut rng);
+					}
+					query.push(c);
+					reference.push(c);
+				}
 
 				
 			} else {
