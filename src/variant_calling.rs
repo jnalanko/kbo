@@ -240,7 +240,7 @@ mod tests {
 	}
 
 	#[test]
-	fn variant_call_test_single_base_substitution() {
+	fn test_single_base_substitution() {
 		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
 		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCTTCAACGTG";
 		//                                                                 ^ here
@@ -252,7 +252,7 @@ mod tests {
 	}
 
 	#[test]
-	fn variant_call_test_multi_base_substitution() {
+	fn test_multi_base_substitution() {
 		//                                             **
 		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
 		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAGCGTCTATTGTACCAATCGGCATCAACGTG";
@@ -265,7 +265,7 @@ mod tests {
 	}
 
 	#[test]
-	fn variant_call_test_multi_base_insertion_non_overlap_case() {
+	fn test_multi_base_insertion_non_overlap_case() {
 		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATATCTATTGTACCAATCGGCATCAACGTG";
 		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAGCGTCTATTGTACCAATCGGCATCAACGTG";
 		//                                             ***
@@ -277,7 +277,7 @@ mod tests {
 	}
 
 	#[test]
-	fn variant_call_test_multi_base_insertion_overlap_case() {
+	fn test_multi_base_insertion_overlap_case() {
 		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
 		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAAAAAATCTATTGTACCAATCGGCATCAACGTG";
 		//                                               ****
@@ -289,7 +289,7 @@ mod tests {
 	}
 
 	#[test]
-	fn variant_call_test_single_base_insertion_non_overlap_case() {
+	fn test_single_base_insertion_non_overlap_case() {
 		// Case: Non-overlapping reference intervals
 
 		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
@@ -303,7 +303,7 @@ mod tests {
 	}
 
 	#[test]
-	fn variant_call_test_single_base_insertion_overlap_case() {
+	fn test_single_base_insertion_overlap_case() {
 		// Case: Overlapping reference intervals
 
 		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
@@ -317,7 +317,7 @@ mod tests {
 	}
 
 	#[test]
-	fn variant_call_test_single_base_deletion_non_overlap_case() {
+	fn test_single_base_deletion_non_overlap_case() {
 		// Case: Non-overlapping query intervals
 
 		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCAGTCAACGTG";
@@ -331,7 +331,7 @@ mod tests {
 	}
 
 	#[test]
-	fn variant_call_test_single_base_deletion_overlap_case() {
+	fn test_single_base_deletion_overlap_case() {
 		// Case: overlapping query intervals
 
 		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATTCAACGTG";
@@ -346,7 +346,7 @@ mod tests {
 
 
     #[test]
-    fn variant_call_test_variants_in_same_query() {
+    fn test_variants_in_same_query() {
         //                                 deleted character    substituted        inserted
         //                                        v                 v                v
         let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATACTATGTGTTATAGCAATTCGGATCGATCGA";
