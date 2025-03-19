@@ -106,13 +106,8 @@ fn resolve_variant(
 	assert!(common_suffix_len > 0);
 	//assert!(unique_end_pos >= i);
 
-	eprintln!("{:?}", ms_vs_ref);
-	eprintln!("{:?}", ms_vs_query);
-
 	let query_ms_peak = get_rightmost_significant_peak(ms_vs_ref, significant_match_threshold);
 	let ref_ms_peak = get_rightmost_significant_peak(ms_vs_query, significant_match_threshold);
-
-	dbg!(query_ms_peak, ref_ms_peak);
 
 	if let (Some(query_ms_peak), Some(ref_ms_peak)) = (query_ms_peak, ref_ms_peak) {
 		let suffix_match_start = k - common_suffix_len;
@@ -120,8 +115,6 @@ fn resolve_variant(
 		// Negative gap means overlap 
 		let query_gap = suffix_match_start as isize - query_ms_peak as isize - 1;
 		let ref_gap = suffix_match_start as isize - ref_ms_peak as isize - 1;
-
-		dbg!(query_gap, ref_gap);
 
 		if query_gap > 0 && ref_gap > 0 {
 			return Some(
@@ -178,24 +171,19 @@ fn call_variants(
 	let index_query = StreamingIndex::new(&sbwt_query, &lcs_query);
 	let ms_vs_ref = index_ref.matching_statistics(&query);
 
-	eprintln!("{:?}", ms_vs_ref.iter().map(|x| x.0).collect::<Vec::<usize>>());
-
 	for i in 1..query.len() {
 		if ms_vs_ref[i].0 < ms_vs_ref[i-1].0 && ms_vs_ref[i-1].0 >= d && ms_vs_ref[i].0 < d {
 			// Go to closest unique match position to the right
-			eprintln!("{} {} {}", i, i+k+1, query.len());
 			for j in i+1..min(i+k+1, query.len()) {
 				if ms_vs_ref[j].0 >= significant_match_threshold && ms_vs_ref[j].1.len() == 1 {
-					eprintln!("Investigating positions {} {}, ms[j] = {}", i, j, ms_vs_ref[j].0);
 					let ref_colex = ms_vs_ref[j].1.start;
 
 					let query_kmer = get_kmer_ending_at(query, j, k);
 					let ref_kmer = sbwt_ref.access_kmer(ref_colex);
 					let suffix_match_len = longest_common_suffix(&query_kmer, &ref_kmer);
 
-					eprintln!("{}", String::from_utf8_lossy(&ref_kmer));
-					eprintln!("{}", String::from_utf8_lossy(&query_kmer));
-					dbg!(suffix_match_len);
+					//eprintln!("{}", String::from_utf8_lossy(&ref_kmer));
+					//eprintln!("{}", String::from_utf8_lossy(&query_kmer));
 					
 					// MS vectors for k-mers (todo: use slices of global MS vector?)
 					let ms_vs_ref = index_ref.matching_statistics(&query_kmer);
@@ -401,7 +389,7 @@ mod tests {
 		let mut reference = Vec::<u8>::new();
 		let mut query = Vec::<u8>::new();
 
-		let n = 200;
+		let n = 230;
 		let variant_spacing = 25;
 		let k = 31;
 
@@ -475,6 +463,8 @@ mod tests {
 			n_correct += (*true_var == *our_var) as usize;
 		}
 
+		eprintln!("{} true variants", true_variants.len());
+		eprintln!("{} calls", calls.len());
 		eprintln!("{} correct out of {}", n_correct, n_calls);
 	}
 
