@@ -389,10 +389,10 @@ mod tests {
 		let mut reference = Vec::<u8>::new();
 		let mut query = Vec::<u8>::new();
 
-		let n = 10000;
+		let n = 100_000;
 		let variant_spacing = 25;
 		let k = 63;
-		let p_value = 1e-6;
+		let p_value = 1e-7;
 
 		let mut true_variants = Vec::<Variant>::new();
 
@@ -450,9 +450,8 @@ mod tests {
 			}
 		}
 
-		dbg!(&true_variants);
-		eprintln!("{}", String::from_utf8_lossy(&reference));
-		eprintln!("{}", String::from_utf8_lossy(&query));
+		//eprintln!("{}", String::from_utf8_lossy(&reference));
+		//eprintln!("{}", String::from_utf8_lossy(&query));
 
 		let calls = run_variant_calling(&query, &reference, k, p_value);
 
