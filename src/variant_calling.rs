@@ -1,4 +1,4 @@
-use std::{cmp::min, ops::Range, process::exit};
+use std::{cmp::min, io::Write, ops::Range, process::exit};
 
 use sbwt::{ContractLeft, ExtendRight, LcsArray, SbwtIndex, SbwtIndexVariant, StreamingIndex, SubsetMatrix};
 
@@ -201,6 +201,67 @@ fn call_variants(
 	}
 
 	calls
+}
+
+// A wrapper for Write that keeps track of the number of bytes written
+struct WriteWithCount<W: Write> {
+	pub inner: W,
+	pub n_bytes_written: usize
+}
+
+impl<W: Write> WriteWithCount<W> {
+	fn write_all(&mut self, bytes: &[u8]) -> std::io::Result<()>{
+		self.inner.write_all(bytes)?;
+		self.n_bytes_written += bytes.len();
+		Ok(())
+	}
+}
+
+struct VcfRecord<'a> {
+	chrom: &'a str,
+	pos: usize,
+	id: &'a str,
+	ref_allele: &'a[u8],
+	alt_allele: &'a[u8],
+	qual: &'a str,
+	filter: &'a str,
+	info: &'a str,
+}
+
+impl<'a> VcfRecord<'a> {
+	fn to_vcf_line(&self) -> String {
+		format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+			self.chrom, self.pos, self.id, 
+			String::from_utf8_lossy(self.ref_allele), String::from_utf8_lossy(self.alt_allele), 
+			self.qual, self.filter, self.info)
+	}
+}
+
+// Returns bytes written
+#[allow(clippy::field_reassign_with_default)]
+fn write_in_vcf_format(out: &mut impl Write, calls: &[Variant], ref_name: &str) -> std::io::Result<usize> {
+	let mut out = WriteWithCount{inner: out, n_bytes_written: 0};
+	out.write_all(b"##fileformat=VCFv4.5\n")?;
+	// Todo: other metadata lines. Are they mandatory?
+
+	out.write_all(b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")?;
+
+	for call in calls.iter() {
+		let rec = VcfRecord{
+			chrom: ref_name,
+			pos: call.query_pos,
+			id: ".",
+			ref_allele: &call.ref_chars,
+			alt_allele: &call.query_chars,
+			qual: ".",
+			filter: "PASS",
+			info: ".",
+		};
+		out.write_all(rec.to_vcf_line().as_bytes())?;
+
+	}
+
+	Ok(out.n_bytes_written)
 }
 
 
