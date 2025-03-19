@@ -185,7 +185,7 @@ fn call_variants(
 			// Go to closest unique match position to the right
 			eprintln!("{} {} {}", i, i+k+1, query.len());
 			for j in i+1..min(i+k+1, query.len()) {
-				if ms_vs_ref[j].1.len() == 1 {
+				if ms_vs_ref[j].0 >= significant_match_threshold && ms_vs_ref[j].1.len() == 1 {
 					eprintln!("Investigating positions {} {}, ms[j] = {}", i, j, ms_vs_ref[j].0);
 					let ref_colex = ms_vs_ref[j].1.start;
 
@@ -252,7 +252,21 @@ mod tests {
 		let variants = run_variant_calling(query, reference);
 		dbg!(&variants);
 
-		assert_eq!(variants, vec![Variant{query_pos: 49, query_chars: vec![b'T'], ref_chars: vec![b'A']}]);
+		assert_eq!(variants, vec![Variant{query_pos: 49, ref_chars: vec![b'A'], query_chars: vec![b'T']}]);
+	}
+
+	#[test]
+	fn variant_call_test_single_base_insertion_case1() {
+		// Case: Overlapping reference intervals
+
+		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
+		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCAATCAACGTG";
+		//                                                                  ^ here
+
+		let variants = run_variant_calling(query, reference);
+		dbg!(&variants);
+
+		assert_eq!(variants, vec![Variant{query_pos: 50, ref_chars: vec![], query_chars: vec![b'A']}]);
 	}
 
     #[test]
