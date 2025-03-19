@@ -50,13 +50,9 @@ fn chars_to_bytes(chars: Vec<char>) -> Vec<u8> {
 
 #[derive(Debug, Eq, PartialEq)]
 struct Variant {
+	query_pos: usize,
 	query_chars: Vec<u8>, // If empty, it's a query deletion
 	ref_chars: Vec<u8>, // If empty, it's a query insertion 
-}
-
-#[derive(Debug)]
-struct VariantCalls {
-	calls: Vec<(usize, Variant)> // Position, variant
 }
 
 // Assumes things about the inputs: todo: document
@@ -103,7 +99,7 @@ fn resolve_variant(
 	common_suffix_len: usize,
 	k: usize,
 	significant_match_threshold: usize,
-) -> Option<Variant> {
+) -> Option<(Vec<u8>, Vec<u8>)> { // Returns (query chars, ref chars)
 
 	assert!(ms_vs_query.len() == k);
 	assert!(ms_vs_ref.len() == k);
@@ -128,10 +124,12 @@ fn resolve_variant(
 		dbg!(query_gap, ref_gap);
 
 		if query_gap > 0 && ref_gap > 0 {
-			return Some(Variant{
-				query_chars: query_kmer[query_ms_peak+1..suffix_match_start].to_vec(),
-				ref_chars: ref_kmer[ref_ms_peak+1..suffix_match_start].to_vec()
-			});
+			return Some(
+				(
+					query_kmer[query_ms_peak+1..suffix_match_start].to_vec(), // Query chars
+					ref_kmer[ref_ms_peak+1..suffix_match_start].to_vec() // Ref chars
+				)
+			)
 		} else {
 			let query_overlap = -query_gap;
 			let ref_overlap = -ref_gap;
@@ -139,16 +137,20 @@ fn resolve_variant(
 			let variant_len = (query_overlap - ref_overlap).unsigned_abs();
 			if query_overlap > ref_overlap {
 				// Deletion in query
-				return Some(Variant{
-					query_chars: vec![], 
-					ref_chars: ref_kmer[ref_ms_peak + 1 .. ref_ms_peak + 1 + variant_len].to_vec()}
+				return Some(
+					(
+						vec![], // Query chars
+						ref_kmer[ref_ms_peak + 1 .. ref_ms_peak + 1 + variant_len].to_vec() // Ref chars
+					)
 				);
 			}  else {
 				// Insertion in query
-				return Some(Variant{
-					query_chars: query_kmer[query_ms_peak + 1 .. query_ms_peak + 1 + variant_len].to_vec(),
-					ref_chars: vec![]
-				});
+				return Some(
+					(
+						query_kmer[query_ms_peak + 1 .. query_ms_peak + 1 + variant_len].to_vec(), // Query chars
+						vec![] // Ref chars
+					)
+				);
 			}
 		}
 
@@ -166,11 +168,11 @@ fn call_variants(
     query: &[u8],
 	significant_match_threshold: usize,
     k: usize,
-) -> VariantCalls {
+) -> Vec<Variant> {
 
 	let d = significant_match_threshold; // Shorthand
 
-	let mut calls: Vec<(usize, Variant)> = vec![];
+	let mut calls: Vec<Variant> = vec![];
 
 	let index_ref = StreamingIndex::new(&sbwt_ref, &lcs_ref);
 	let index_query = StreamingIndex::new(&sbwt_query, &lcs_query);
@@ -200,7 +202,7 @@ fn call_variants(
 					let ms_vs_query = index_query.matching_statistics(&ref_kmer);
 
 					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, suffix_match_len, k, significant_match_threshold) {
-						calls.push((i, var));
+						calls.push(Variant{query_chars: var.0, ref_chars: var.1, query_pos: i});
 					}
 					break;
 				}
@@ -210,7 +212,7 @@ fn call_variants(
 		}
 	}
 
-    VariantCalls{calls}
+	calls
 }
 
 
@@ -225,7 +227,7 @@ mod tests {
 
     use super::*;
 
-	fn run_variant_calling(query: &[u8], reference: &[u8]) -> VariantCalls {
+	fn run_variant_calling(query: &[u8], reference: &[u8]) -> Vec<Variant> {
 		let k = 20;
 
 
@@ -252,11 +254,11 @@ mod tests {
         let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATACTATGTGTTATAGCAATTCGGATCGATCGA";
         let query =      b"TCGTGGATCGATACACGCTAGCAGCTGACTCGATGGGATACCATGTGTTATAGCAATTCCGGATCGATCGA";
 
-		let variants = run_variant_calling(query, reference).calls;
+		let variants = run_variant_calling(query, reference);
 		dbg!(&variants);
-		assert!(variants[0].0 == 24 && variants[0].1 == Variant{query_chars: vec![], ref_chars: vec![b'G']});
-		assert!(variants[1].0 == 41 && variants[1].1 == Variant{query_chars: vec![b'C'], ref_chars: vec![b'T']});
-		assert!(variants[2].0 == 59 && variants[2].1 == Variant{query_chars: vec![b'C'], ref_chars: vec![]});
+		assert!(variants[0] == Variant{query_pos: 24, query_chars: vec![], ref_chars: vec![b'G']});
+		assert!(variants[1] == Variant{query_pos: 41, query_chars: vec![b'C'], ref_chars: vec![b'T']});
+		assert!(variants[2] == Variant{query_pos: 59, query_chars: vec![b'C'], ref_chars: vec![]});
     }
 
 }
