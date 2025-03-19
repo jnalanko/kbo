@@ -49,7 +49,7 @@ fn chars_to_bytes(chars: Vec<char>) -> Vec<u8> {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-struct Variant {
+pub struct Variant {
 	query_pos: usize,
 	query_chars: Vec<u8>, // If empty, it's a query deletion
 	ref_chars: Vec<u8>, // If empty, it's a query insertion 
@@ -153,7 +153,7 @@ fn resolve_variant(
 }
 
 #[allow(missing_docs)] // Will document when I know what this does
-fn call_variants(
+pub fn call_variants(
 	sbwt_ref: &SbwtIndex<SubsetMatrix>,
 	lcs_ref: &LcsArray,
 	sbwt_query: &SbwtIndex<SubsetMatrix>,
@@ -239,7 +239,7 @@ impl<'a> VcfRecord<'a> {
 
 // Returns bytes written
 #[allow(clippy::field_reassign_with_default)]
-fn write_in_vcf_format(out: &mut impl Write, calls: &[Variant], ref_name: &str) -> std::io::Result<usize> {
+pub fn write_in_vcf_format(out: &mut impl Write, calls: &[Variant], ref_name: &str) -> std::io::Result<usize> {
 	let mut out = WriteWithCount{inner: out, n_bytes_written: 0};
 	out.write_all(b"##fileformat=VCFv4.5\n")?;
 	// Todo: other metadata lines. Are they mandatory?
