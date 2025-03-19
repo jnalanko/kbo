@@ -243,12 +243,20 @@ mod tests {
 
 	}
 
-	fn test_single_base_substitution() {
+	#[test]
+	fn variant_call_test_single_base_substitution() {
+		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
+		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCTTCAACGTG";
+		//                                                                 ^ here
 
+		let variants = run_variant_calling(query, reference);
+		dbg!(&variants);
+
+		assert_eq!(variants, vec![Variant{query_pos: 49, query_chars: vec![b'T'], ref_chars: vec![b'A']}]);
 	}
 
     #[test]
-    fn test_variants_in_same_query() {
+    fn variant_call_test_variants_in_same_query() {
         //                                 deleted character    substituted        inserted
         //                                        v                 v                v
         let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATACTATGTGTTATAGCAATTCGGATCGATCGA";
@@ -256,9 +264,11 @@ mod tests {
 
 		let variants = run_variant_calling(query, reference);
 		dbg!(&variants);
-		assert!(variants[0] == Variant{query_pos: 24, query_chars: vec![], ref_chars: vec![b'G']});
-		assert!(variants[1] == Variant{query_pos: 41, query_chars: vec![b'C'], ref_chars: vec![b'T']});
-		assert!(variants[2] == Variant{query_pos: 59, query_chars: vec![b'C'], ref_chars: vec![]});
+
+		assert_eq!(variants[0], Variant{query_pos: 24, query_chars: vec![], ref_chars: vec![b'G']});
+		assert_eq!(variants[1], Variant{query_pos: 41, query_chars: vec![b'C'], ref_chars: vec![b'T']});
+		assert_eq!(variants[2], Variant{query_pos: 59, query_chars: vec![b'C'], ref_chars: vec![]});
+		assert_eq!(variants.len(), 3);
     }
 
 }
