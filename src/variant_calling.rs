@@ -401,7 +401,7 @@ mod tests {
 		let mut reference = Vec::<u8>::new();
 		let mut query = Vec::<u8>::new();
 
-		let n = 200;
+		let n = 2000;
 		let variant_spacing = 25;
 		let k = 31;
 
