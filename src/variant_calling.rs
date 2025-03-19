@@ -460,6 +460,9 @@ mod tests {
 		for variant_idx in 0..min(calls.len(), true_variants.len()) {
 			let true_var = &true_variants[variant_idx];
 			let our_var = &calls[variant_idx];
+			eprintln!("true: ({}: {} -> {}), our: ({}: {} -> {})", 
+				true_var.query_pos, String::from_utf8_lossy(&true_var.ref_chars), String::from_utf8_lossy(&true_var.query_chars),
+				our_var.query_pos, String::from_utf8_lossy(&our_var.ref_chars), String::from_utf8_lossy(&our_var.query_chars));
 			n_correct += (*true_var == *our_var) as usize;
 		}
 
