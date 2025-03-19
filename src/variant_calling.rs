@@ -48,7 +48,7 @@ fn chars_to_bytes(chars: Vec<char>) -> Vec<u8> {
     chars.iter().flat_map(|&c| c.to_string().into_bytes()).collect()
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 struct Variant {
 	query_chars: Vec<u8>, // If empty, it's a query deletion
 	ref_chars: Vec<u8>, // If empty, it's a query insertion 
@@ -225,15 +225,9 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_variant_calling() {
-
+	fn run_variant_calling(query: &[u8], reference: &[u8]) -> VariantCalls {
 		let k = 20;
 
-        //                                 deleted character    substituted        inserted
-        //                                        v                 v                v
-        let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATACTATGTGTTATAGCAATTCGGATCGATCGA";
-        let query =      b"TCGTGGATCGATACACGCTAGCAGCTGACTCGATGGGATACCATGTGTTATAGCAATTCCGGATCGATCGA";
 
 
         let (sbwt_ref, lcs_ref) = SbwtIndexBuilder::<BitPackedKmerSortingMem>::new().k(k).build_lcs(true).build_select_support(true).run_from_slices(&[reference]);
@@ -243,11 +237,26 @@ mod tests {
 
         eprintln!("t = {}", threshold);
 
-		let variants = call_variants(&sbwt_ref, lcs_ref.as_ref().unwrap(), &sbwt_query, lcs_query.as_ref().unwrap(), query, threshold, k);
+		call_variants(&sbwt_ref, lcs_ref.as_ref().unwrap(), &sbwt_query, lcs_query.as_ref().unwrap(), query, threshold, k)
 
-        dbg!(variants);
+	}
 
-        assert!(false);
+	fn test_single_base_substitution() {
+
+	}
+
+    #[test]
+    fn test_variants_in_same_query() {
+        //                                 deleted character    substituted        inserted
+        //                                        v                 v                v
+        let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATACTATGTGTTATAGCAATTCGGATCGATCGA";
+        let query =      b"TCGTGGATCGATACACGCTAGCAGCTGACTCGATGGGATACCATGTGTTATAGCAATTCCGGATCGATCGA";
+
+		let variants = run_variant_calling(query, reference).calls;
+		dbg!(&variants);
+		assert!(variants[0].0 == 24 && variants[0].1 == Variant{query_chars: vec![], ref_chars: vec![b'G']});
+		assert!(variants[1].0 == 41 && variants[1].1 == Variant{query_chars: vec![b'C'], ref_chars: vec![b'T']});
+		assert!(variants[2].0 == 59 && variants[2].1 == Variant{query_chars: vec![b'C'], ref_chars: vec![]});
     }
 
 }
