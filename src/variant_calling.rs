@@ -257,6 +257,20 @@ mod tests {
 
 	#[test]
 	fn variant_call_test_single_base_insertion_case1() {
+		// Case: Non-overlapping reference intervals
+
+		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
+		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCAGTCAACGTG";
+		//                                                                  ^ here
+
+		let variants = run_variant_calling(query, reference);
+		dbg!(&variants);
+
+		assert_eq!(variants, vec![Variant{query_pos: 50, ref_chars: vec![], query_chars: vec![b'G']}]);
+	}
+
+	#[test]
+	fn variant_call_test_single_base_insertion_case2() {
 		// Case: Overlapping reference intervals
 
 		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
@@ -268,6 +282,7 @@ mod tests {
 
 		assert_eq!(variants, vec![Variant{query_pos: 50, ref_chars: vec![], query_chars: vec![b'A']}]);
 	}
+
 
     #[test]
     fn variant_call_test_variants_in_same_query() {
