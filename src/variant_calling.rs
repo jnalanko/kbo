@@ -219,8 +219,9 @@ fn call_variants(
 #[cfg(test)]
 mod tests {
 
-    use std::cmp::max;
+    use std::{cmp::max, env::var};
 
+    use random::Source;
     use sbwt::{BitPackedKmerSortingMem, SbwtConstructionAlgorithm, SbwtIndexBuilder};
 
     use crate::{build, derandomize::derandomize_ms_vec, index::{query_sbwt, BuildOpts}, translate::translate_ms_vec};
@@ -368,7 +369,6 @@ mod tests {
 		assert_eq!(variants, vec![Variant{query_pos: 31, query_chars: b"".to_vec(), ref_chars: b"AAAA".to_vec()}]);
 	}
 
-
     #[test]
     fn test_variants_in_same_query() {
         //                                 deleted character    substituted        inserted
@@ -384,5 +384,77 @@ mod tests {
 		assert_eq!(variants[2], Variant{query_pos: 59, query_chars: vec![b'C'], ref_chars: vec![]});
 		assert_eq!(variants.len(), 3);
     }
+
+	fn random_nucleotide(rng: &mut random::Default) -> u8{
+		match rng.read_u64() % 4 {
+			0 => b'A',
+			1 => b'C',
+			2 => b'G',
+			3 => b'T',
+			_ => panic!("Impossible math")
+		}
+	}
+
+	#[test]
+	fn test_long_generated_testcase(){
+		let mut rng = random::Default::new([123412, 121232]);
+		let mut reference = Vec::<u8>::new();
+		let mut query = Vec::<u8>::new();
+
+		let n = 200;
+		let variant_spacing = 25;
+		let k = 31;
+
+		let mut true_variants = Vec::<Variant>::new();
+
+		for i in 0..n {
+			if i > variant_spacing && i < n - variant_spacing && i % variant_spacing == 0 {
+				let mut query_variant_len = rng.read_u64() % 4;
+				let mut ref_variant_len = rng.read_u64() % 4;
+				while query_variant_len == 0 && ref_variant_len == 0 {
+					// Reroll
+					query_variant_len = rng.read_u64() % 4;
+					ref_variant_len = rng.read_u64() % 4;
+				}
+
+				let mut query_variant: Vec<u8> = (0..query_variant_len).map(|_| random_nucleotide(&mut rng)).collect();
+				let ref_variant: Vec<u8> = (0..ref_variant_len).map(|_| random_nucleotide(&mut rng)).collect();
+
+				while !query_variant.is_empty() && !ref_variant.is_empty() 
+					&& (query_variant.first() == ref_variant.first() || query_variant.last() == ref_variant.last()){
+					// Reroll the first and the last character so that we have a mismatch
+					*query_variant.last_mut().unwrap() = random_nucleotide(&mut rng);
+					*query_variant.first_mut().unwrap() = random_nucleotide(&mut rng);
+				}
+
+				true_variants.push(Variant{query_pos: query.len(), query_chars: query_variant.clone(), ref_chars: ref_variant.clone()});
+
+				reference.extend(ref_variant.iter());
+				query.extend(query_variant.iter());
+
+				
+			} else {
+				let c = random_nucleotide(&mut rng);
+				query.push(c);
+				reference.push(c);
+			}
+		}
+
+		dbg!(&true_variants);
+		eprintln!("{}", String::from_utf8_lossy(&reference));
+		eprintln!("{}", String::from_utf8_lossy(&query));
+
+		let calls = run_variant_calling(&query, &reference, k);
+
+		let n_calls = calls.len();
+		let mut n_correct = 0_usize;
+		for variant_idx in 0..min(calls.len(), true_variants.len()) {
+			let true_var = &true_variants[variant_idx];
+			let our_var = &calls[variant_idx];
+			n_correct += (*true_var == *our_var) as usize;
+		}
+
+		eprintln!("{} correct out of {}", n_correct, n_calls);
+	}
 
 }
