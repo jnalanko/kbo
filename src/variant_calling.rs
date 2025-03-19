@@ -126,7 +126,10 @@ fn resolve_variant(
 		} else {
 			let query_overlap = -query_gap;
 			let ref_overlap = -ref_gap;
-			assert!(query_overlap != ref_overlap); // This is impossible?
+			if query_overlap == ref_overlap {
+				eprintln!("WARNING: weird case: query_overlap == ref_overlap. Ignoring.");
+				return None;
+			}
 			let variant_len = (query_overlap - ref_overlap).unsigned_abs();
 			if query_overlap > ref_overlap {
 				// Deletion in query
