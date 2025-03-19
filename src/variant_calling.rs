@@ -227,11 +227,7 @@ mod tests {
 
     use super::*;
 
-	fn run_variant_calling(query: &[u8], reference: &[u8]) -> Vec<Variant> {
-		let k = 20;
-
-
-
+	fn run_variant_calling(query: &[u8], reference: &[u8], k: usize) -> Vec<Variant> {
         let (sbwt_ref, lcs_ref) = SbwtIndexBuilder::<BitPackedKmerSortingMem>::new().k(k).build_lcs(true).build_select_support(true).run_from_slices(&[reference]);
         let (sbwt_query, lcs_query) = SbwtIndexBuilder::<BitPackedKmerSortingMem>::new().k(k).build_lcs(true).build_select_support(true).run_from_slices(&[query]);
 
@@ -249,10 +245,23 @@ mod tests {
 		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCTTCAACGTG";
 		//                                                                 ^ here
 
-		let variants = run_variant_calling(query, reference);
+		let variants = run_variant_calling(query, reference, 20);
 		dbg!(&variants);
 
 		assert_eq!(variants, vec![Variant{query_pos: 49, ref_chars: vec![b'A'], query_chars: vec![b'T']}]);
+	}
+
+	#[test]
+	fn variant_call_test_multi_base_substitution() {
+		//                                             **
+		let reference = b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
+		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAGCGTCTATTGTACCAATCGGCATCAACGTG";
+		//                                             ***
+
+		let variants = run_variant_calling(query, reference, 30);
+		dbg!(&variants);
+
+		assert_eq!(variants, vec![Variant{query_pos: 29, ref_chars: b"AA".to_vec(), query_chars: b"GCG".to_vec()}]);
 	}
 
 	#[test]
@@ -263,7 +272,7 @@ mod tests {
 		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCAGTCAACGTG";
 		//                                                                  ^ here
 
-		let variants = run_variant_calling(query, reference);
+		let variants = run_variant_calling(query, reference, 20);
 		dbg!(&variants);
 
 		assert_eq!(variants, vec![Variant{query_pos: 50, ref_chars: vec![], query_chars: vec![b'G']}]);
@@ -277,7 +286,7 @@ mod tests {
 		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCAATCAACGTG";
 		//                                                                  ^ here
 
-		let variants = run_variant_calling(query, reference);
+		let variants = run_variant_calling(query, reference, 20);
 		dbg!(&variants);
 
 		assert_eq!(variants, vec![Variant{query_pos: 50, ref_chars: vec![], query_chars: vec![b'A']}]);
@@ -291,7 +300,7 @@ mod tests {
 		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
 		//                                                                  ^ here
 
-		let variants = run_variant_calling(query, reference);
+		let variants = run_variant_calling(query, reference, 20);
 		dbg!(&variants);
 
 		assert_eq!(variants, vec![Variant{query_pos: 50, ref_chars: vec![b'G'], query_chars: vec![]}]);
@@ -305,7 +314,7 @@ mod tests {
 		let query =     b"GCGGGGCTGTTGACGTTTGGGGTTGAATAAATCTATTGTACCAATCGGCATCAACGTG";
 		//                                                                  ^ here
 
-		let variants = run_variant_calling(query, reference);
+		let variants = run_variant_calling(query, reference, 20);
 		dbg!(&variants);
 
 		assert_eq!(variants, vec![Variant{query_pos: 51, ref_chars: vec![b'T'], query_chars: vec![]}]);
@@ -319,7 +328,7 @@ mod tests {
         let reference = b"TCGTGGATCGATACACGCTAGCAGGCTGACTCGATGGGATACTATGTGTTATAGCAATTCGGATCGATCGA";
         let query =      b"TCGTGGATCGATACACGCTAGCAGCTGACTCGATGGGATACCATGTGTTATAGCAATTCCGGATCGATCGA";
 
-		let variants = run_variant_calling(query, reference);
+		let variants = run_variant_calling(query, reference, 20);
 		dbg!(&variants);
 
 		assert_eq!(variants[0], Variant{query_pos: 24, query_chars: vec![], ref_chars: vec![b'G']});
