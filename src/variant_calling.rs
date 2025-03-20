@@ -1,3 +1,5 @@
+//! Call all variants between a query and a reference.
+
 use std::{cmp::min, io::Write, ops::Range};
 use sbwt::{LcsArray, SbwtIndex, StreamingIndex, SubsetMatrix};
 
@@ -31,7 +33,7 @@ fn longest_common_suffix(x: &[u8], y: &[u8]) -> usize {
 	len
 }
 
-/// This struct descibres a variant between the query and the reference.
+/// This struct describes a variant between the query and the reference.
 #[derive(Debug, Eq, PartialEq)]
 pub struct Variant {
 	/// A position in the query that does not match the reference
