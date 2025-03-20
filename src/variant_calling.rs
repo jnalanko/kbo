@@ -1,6 +1,5 @@
-use std::{cmp::min, io::Write, ops::Range, process::exit};
-
-use sbwt::{ContractLeft, ExtendRight, LcsArray, SbwtIndex, SbwtIndexVariant, StreamingIndex, SubsetMatrix};
+use std::{cmp::min, io::Write, ops::Range};
+use sbwt::{LcsArray, SbwtIndex, StreamingIndex, SubsetMatrix};
 
 // Pads with dollars from the left if there is not full k-mer
 fn get_kmer_ending_at(query: &[u8], end_pos: usize, k: usize) -> Vec<u8> {
@@ -89,7 +88,7 @@ pub fn resolve_variant(
 	assert!(ms_vs_query.len() == k);
 	assert!(ms_vs_ref.len() == k);
 
-	let common_suffix_len = longest_common_suffix(&query_kmer, &ref_kmer);
+	let common_suffix_len = longest_common_suffix(query_kmer, ref_kmer);
 	assert!(common_suffix_len > 0);
 
 	let query_ms_peak = get_rightmost_significant_peak(ms_vs_ref, significant_match_threshold);
