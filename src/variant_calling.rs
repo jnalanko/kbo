@@ -71,8 +71,8 @@ fn get_rightmost_significant_peak(ms: &[(usize, Range<usize>)], significant_matc
 ///                longest substring of query_kmer ending at position i that matches the
 ///                reference SBWT, and l_i..r_i is the colexicographic range of that match.
 /// * ms_vs_ref: the same as ms_vs_query, but with the roles of the query and the reference swapped.
-/// * common_suffix_len: length of the longest common suffix of query_kmer and ref_kmer.
-/// * significant_match_threshold: length of a match that is considered statistically significant. 
+/// * significant_match_threshold: length of a match that is considered statistically significant.
+///                                Use e.g. [crate::derandomize::random_match_threshold] to determine this.
 /// 
 /// Returns: The variant sequences in the query and in the reference. The function may fail,
 ///          in which case None is returned.
@@ -88,7 +88,6 @@ pub fn resolve_variant(
 	assert!(ref_kmer.len() == k);
 	assert!(ms_vs_query.len() == k);
 	assert!(ms_vs_ref.len() == k);
-	//assert!(unique_end_pos >= i);
 
 	let common_suffix_len = longest_common_suffix(&query_kmer, &ref_kmer);
 	assert!(common_suffix_len > 0);
@@ -142,6 +141,13 @@ pub fn resolve_variant(
 	None // Could not resolve variant
 }
 
+// Call all variants between the query and the reference. Parameters:
+// * sbwt_ref: the SBWT index of the reference
+// * sbwt_lcs: the LCS array of the reference
+// * sbwt_query: the SBWT index of the query
+// * lcs_query: the LCS array of the query
+// * query: the query sequence as ASCII characters
+// * max_error_prob: the p-value for statisticially significant matches, e.g. 1e-8 
 #[allow(missing_docs)] // Will document when I know what this does
 pub fn call_variants(
 	sbwt_ref: &SbwtIndex<SubsetMatrix>,
@@ -149,23 +155,24 @@ pub fn call_variants(
 	sbwt_query: &SbwtIndex<SubsetMatrix>,
 	lcs_query: &LcsArray,
     query: &[u8],
-	significant_match_threshold: usize,
-    k: usize,
+	max_error_prob: f64,
 ) -> Vec<Variant> {
 
-	let d = significant_match_threshold; // Shorthand
+	assert_eq!(sbwt_ref.k(), sbwt_query.k());
+	let k = sbwt_ref.k();
+	let d = crate::derandomize::random_match_threshold(k, sbwt_ref.n_kmers(), 4, max_error_prob);
 
 	let mut calls: Vec<Variant> = vec![];
 
-	let index_ref = StreamingIndex::new(&sbwt_ref, &lcs_ref);
-	let index_query = StreamingIndex::new(&sbwt_query, &lcs_query);
-	let ms_vs_ref = index_ref.matching_statistics(&query);
+	let index_ref = StreamingIndex::new(sbwt_ref, lcs_ref);
+	let index_query = StreamingIndex::new(sbwt_query, lcs_query);
+	let ms_vs_ref = index_ref.matching_statistics(query);
 
 	for i in 1..query.len() {
 		if ms_vs_ref[i].0 < ms_vs_ref[i-1].0 && ms_vs_ref[i-1].0 >= d && ms_vs_ref[i].0 < d {
 			// Go to closest unique match position to the right
 			for j in i+1..min(i+k+1, query.len()) {
-				if ms_vs_ref[j].0 >= significant_match_threshold && ms_vs_ref[j].1.len() == 1 {
+				if ms_vs_ref[j].0 >= d && ms_vs_ref[j].1.len() == 1 {
 					let ref_colex = ms_vs_ref[j].1.start;
 
 					let query_kmer = get_kmer_ending_at(query, j, k);
@@ -174,11 +181,11 @@ pub fn call_variants(
 					//eprintln!("{}", String::from_utf8_lossy(&ref_kmer));
 					//eprintln!("{}", String::from_utf8_lossy(&query_kmer));
 					
-					// MS vectors for k-mers (todo: use slices of global MS vector?)
+					// MS vectors for k-mers (Possible future work: could we reuse slices of the existing MS vectors?)
 					let ms_vs_ref = index_ref.matching_statistics(&query_kmer);
 					let ms_vs_query = index_query.matching_statistics(&ref_kmer);
 
-					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, significant_match_threshold) {
+					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, d) {
 						calls.push(Variant{query_chars: var.0, ref_chars: var.1, query_pos: i});
 					}
 					break;
@@ -270,12 +277,7 @@ mod tests {
         let (sbwt_ref, lcs_ref) = SbwtIndexBuilder::<BitPackedKmerSortingMem>::new().k(k).build_lcs(true).build_select_support(true).run_from_slices(&[reference]);
         let (sbwt_query, lcs_query) = SbwtIndexBuilder::<BitPackedKmerSortingMem>::new().k(k).build_lcs(true).build_select_support(true).run_from_slices(&[query]);
 
-		let threshold = crate::derandomize::random_match_threshold(k, max(sbwt_ref.n_kmers(), sbwt_query.n_kmers()), 4_usize, p_value);
-
-        eprintln!("t = {}", threshold);
-
-		call_variants(&sbwt_ref, lcs_ref.as_ref().unwrap(), &sbwt_query, lcs_query.as_ref().unwrap(), query, threshold, k)
-
+		call_variants(&sbwt_ref, lcs_ref.as_ref().unwrap(), &sbwt_query, lcs_query.as_ref().unwrap(), query, p_value)
 	}
 
 	#[test]
