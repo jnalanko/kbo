@@ -19,18 +19,6 @@ fn get_kmer_ending_at(query: &[u8], end_pos: usize, k: usize) -> Vec<u8> {
 	query_kmer
 }
 
-fn longest_common_prefix(x: &[u8], y: &[u8]) -> usize {
-	let mut len = 0_usize;
-	for i in 0..min(x.len(), y.len()) {
-		if x[i] == y[i] {
-			len += 1;
-		} else {
-			break;
-		}
-	}
-	len
-}
-
 fn longest_common_suffix(x: &[u8], y: &[u8]) -> usize {
 	let mut len = 0_usize;
 	for i in 0..min(x.len(), y.len()) {
@@ -44,38 +32,19 @@ fn longest_common_suffix(x: &[u8], y: &[u8]) -> usize {
 	len
 }
 
-fn chars_to_bytes(chars: Vec<char>) -> Vec<u8> {
-    chars.iter().flat_map(|&c| c.to_string().into_bytes()).collect()
-}
-
+/// This struct descibres a variant between the query and the reference.
 #[derive(Debug, Eq, PartialEq)]
 pub struct Variant {
+	/// A position in the query that does not match the reference
 	query_pos: usize,
-	query_chars: Vec<u8>, // If empty, it's a query deletion
-	ref_chars: Vec<u8>, // If empty, it's a query insertion 
-}
 
-// Assumes things about the inputs: todo: document
-fn get_variant_length(ms: &[(usize, Range<usize>)], common_suffix_len: usize, significant_match_threshold: usize) -> usize {
-	assert!(ms.len() > common_suffix_len);
+	/// The sequence of characters that are in the query but not the reference.
+	/// If empty, the variant is a deletion.
+	query_chars: Vec<u8>,
 
-	// Todo: make sure that none of the arithmetic can result in negative values
-
-	let mismatch_pos = ms.len() - common_suffix_len - 1;
-	// Go to the right until we are that match threshold again
-	for i in mismatch_pos..ms.len() {
-		let match_len = ms[i].0;
-		//dbg!(i,mismatch_pos,match_len,common_suffix_len);
-		if match_len >= significant_match_threshold {
-			return i - mismatch_pos + 1 - match_len;
-		}
-	}
-
-	// There is no significant match to the right -> we use the
-	// rightmost match.
-	let match_len = ms.last().unwrap().0;
-	//dbg!(match_len, ms.len(), mismatch_pos);
-	(ms.len() - 1) - mismatch_pos + 1 - match_len
+	/// The sequence of characters that are in the reference but not the query.
+	/// If empty, the variant is an insertion.
+	ref_chars: Vec<u8>,
 }
 
 fn get_rightmost_significant_peak(ms: &[(usize, Range<usize>)], significant_match_threshold: usize) -> Option<usize> {
@@ -90,17 +59,34 @@ fn get_rightmost_significant_peak(ms: &[(usize, Range<usize>)], significant_matc
 	None
 }
 
-#[allow(clippy::too_many_arguments)]
-fn resolve_variant(
+/// Resolve a variant between the query kmer and the reference k-mer that occurs just before
+/// the longest common suffix of the two k-mers. This is a low-level subroutine and there are 
+/// a lot of assumptions on the parameters, so only call this if you know what you are doing. 
+/// To call and resolve all variants in a longer query, use [call_variants] instead.
+/// 
+/// Parameters:
+/// * query_kmer: The query k-mer
+/// * ref_kmer: The reference k-mer
+/// * ms_vs_query: An array of elements (d_i, l_i..r_i) such that d_i is the length of the
+///                longest substring of query_kmer ending at position i that matches the
+///                reference SBWT, and l_i..r_i is the colexicographic range of that match.
+/// * ms_vs_ref: the same as ms_vs_query, but with the roles of the query and the reference swapped.
+/// * common_suffix_len: length of the longest common suffix of query_kmer and ref_kmer.
+/// * significant_match_threshold: length of a match that is considered statistically significant. 
+/// 
+/// Returns: The variant sequences in the query and in the reference. The function may fail,
+///          in which case None is returned.
+pub fn resolve_variant(
 	query_kmer: &[u8], 
 	ref_kmer: &[u8], 
 	ms_vs_query: &[(usize, Range<usize>)], // Slice of length k
 	ms_vs_ref: &[(usize, Range<usize>)], // Slice of length k
 	common_suffix_len: usize,
-	k: usize,
 	significant_match_threshold: usize,
-) -> Option<(Vec<u8>, Vec<u8>)> { // Returns (query chars, ref chars)
+) -> Option<(Vec<u8>, Vec<u8>)> {
 
+	let k = query_kmer.len();
+	assert!(ref_kmer.len() == k);
 	assert!(ms_vs_query.len() == k);
 	assert!(ms_vs_ref.len() == k);
 	assert!(common_suffix_len > 0);
@@ -192,7 +178,7 @@ pub fn call_variants(
 					let ms_vs_ref = index_ref.matching_statistics(&query_kmer);
 					let ms_vs_query = index_query.matching_statistics(&ref_kmer);
 
-					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, suffix_match_len, k, significant_match_threshold) {
+					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, suffix_match_len, significant_match_threshold) {
 						calls.push(Variant{query_chars: var.0, ref_chars: var.1, query_pos: i});
 					}
 					break;
