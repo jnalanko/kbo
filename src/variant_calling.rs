@@ -36,7 +36,7 @@ fn longest_common_suffix(x: &[u8], y: &[u8]) -> usize {
 /// This struct describes a variant between the query and the reference.
 #[derive(Debug, Eq, PartialEq)]
 pub struct Variant {
-	/// A position in the query that does not match the reference
+	/// A position in the query that does not match the reference.
 	pub query_pos: usize,
 
 	/// The sequence of characters that are in the query but not the reference.
