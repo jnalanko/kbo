@@ -140,14 +140,13 @@ pub fn resolve_variant(
 	None // Could not resolve variant
 }
 
-// Call all variants between the query and the reference. Parameters:
-// * sbwt_ref: the SBWT index of the reference
-// * sbwt_lcs: the LCS array of the reference
-// * sbwt_query: the SBWT index of the query
-// * lcs_query: the LCS array of the query
-// * query: the query sequence as ASCII characters
-// * max_error_prob: the p-value for statisticially significant matches, e.g. 1e-8 
-#[allow(missing_docs)] // Will document when I know what this does
+/// Call all variants between the query and the reference. Parameters:
+/// * sbwt_ref: the SBWT index of the reference
+/// * sbwt_lcs: the LCS array of the reference
+/// * sbwt_query: the SBWT index of the query
+/// * lcs_query: the LCS array of the query
+/// * query: the query sequence as ASCII characters
+/// * max_error_prob: the p-value for statisticially significant matches, e.g. 1e-8 
 pub fn call_variants(
 	sbwt_ref: &SbwtIndex<SubsetMatrix>,
 	lcs_ref: &LcsArray,
@@ -223,7 +222,7 @@ struct VcfRecord<'a> {
 	info: &'a str,
 }
 
-impl<'a> VcfRecord<'a> {
+impl VcfRecord<'_> {
 	fn to_vcf_line(&self) -> String {
 		format!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
 			self.chrom, self.pos, self.id, 
@@ -232,8 +231,9 @@ impl<'a> VcfRecord<'a> {
 	}
 }
 
-// Returns bytes written
-#[allow(clippy::field_reassign_with_default)]
+/// Write the variant calls in VCF format into the given output stream.
+/// The given ref_name will be written to the CHROM field of the VCF format.
+/// Returns the number of bytes written
 pub fn write_in_vcf_format(out: &mut impl Write, calls: &[Variant], ref_name: &str) -> std::io::Result<usize> {
 	let mut out = WriteWithCount{inner: out, n_bytes_written: 0};
 	out.write_all(b"##fileformat=VCFv4.5\n")?;
@@ -263,12 +263,8 @@ pub fn write_in_vcf_format(out: &mut impl Write, calls: &[Variant], ref_name: &s
 #[cfg(test)]
 mod tests {
 
-    use std::{cmp::max, env::var};
-
     use random::Source;
-    use sbwt::{BitPackedKmerSortingMem, SbwtConstructionAlgorithm, SbwtIndexBuilder};
-
-    use crate::{build, derandomize::derandomize_ms_vec, index::{query_sbwt, BuildOpts}, translate::translate_ms_vec};
+    use sbwt::{BitPackedKmerSortingMem, SbwtIndexBuilder};
 
     use super::*;
 
