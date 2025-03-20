@@ -37,15 +37,15 @@ fn longest_common_suffix(x: &[u8], y: &[u8]) -> usize {
 #[derive(Debug, Eq, PartialEq)]
 pub struct Variant {
 	/// A position in the query that does not match the reference
-	query_pos: usize,
+	pub query_pos: usize,
 
 	/// The sequence of characters that are in the query but not the reference.
 	/// If empty, the variant is a deletion.
-	query_chars: Vec<u8>,
+	pub query_chars: Vec<u8>,
 
 	/// The sequence of characters that are in the reference but not the query.
 	/// If empty, the variant is an insertion.
-	ref_chars: Vec<u8>,
+	pub ref_chars: Vec<u8>,
 }
 
 fn get_rightmost_significant_peak(ms: &[(usize, Range<usize>)], significant_match_threshold: usize) -> Option<usize> {
