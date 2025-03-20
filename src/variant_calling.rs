@@ -81,7 +81,6 @@ pub fn resolve_variant(
 	ref_kmer: &[u8], 
 	ms_vs_query: &[(usize, Range<usize>)], // Slice of length k
 	ms_vs_ref: &[(usize, Range<usize>)], // Slice of length k
-	common_suffix_len: usize,
 	significant_match_threshold: usize,
 ) -> Option<(Vec<u8>, Vec<u8>)> {
 
@@ -89,8 +88,10 @@ pub fn resolve_variant(
 	assert!(ref_kmer.len() == k);
 	assert!(ms_vs_query.len() == k);
 	assert!(ms_vs_ref.len() == k);
-	assert!(common_suffix_len > 0);
 	//assert!(unique_end_pos >= i);
+
+	let common_suffix_len = longest_common_suffix(&query_kmer, &ref_kmer);
+	assert!(common_suffix_len > 0);
 
 	let query_ms_peak = get_rightmost_significant_peak(ms_vs_ref, significant_match_threshold);
 	let ref_ms_peak = get_rightmost_significant_peak(ms_vs_query, significant_match_threshold);
@@ -169,7 +170,6 @@ pub fn call_variants(
 
 					let query_kmer = get_kmer_ending_at(query, j, k);
 					let ref_kmer = sbwt_ref.access_kmer(ref_colex);
-					let suffix_match_len = longest_common_suffix(&query_kmer, &ref_kmer);
 
 					//eprintln!("{}", String::from_utf8_lossy(&ref_kmer));
 					//eprintln!("{}", String::from_utf8_lossy(&query_kmer));
@@ -178,7 +178,7 @@ pub fn call_variants(
 					let ms_vs_ref = index_ref.matching_statistics(&query_kmer);
 					let ms_vs_query = index_query.matching_statistics(&ref_kmer);
 
-					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, suffix_match_len, significant_match_threshold) {
+					if let Some(var) = resolve_variant(&query_kmer, &ref_kmer, &ms_vs_query, &ms_vs_ref, significant_match_threshold) {
 						calls.push(Variant{query_chars: var.0, ref_chars: var.1, query_pos: i});
 					}
 					break;
